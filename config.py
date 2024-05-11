@@ -7,9 +7,9 @@ class MambaConfig(PretrainedConfig):
     def __init__(
         self,
         vocab_size=50280,
-        hidden_size=768,
+        hidden_size=4096,
         state_size=16,
-        num_hidden_layers=32,
+        num_hidden_layers=64,
         layer_norm_epsilon=1e-5,
         pad_token_id=0,
         bos_token_id=0,
@@ -29,6 +29,8 @@ class MambaConfig(PretrainedConfig):
         time_step_floor=1e-4,
         rescale_prenorm_residual=False,
         use_cache=True,
+        num_attention_heads=2,  
+        attention_probs_dropout_prob=0.1,
         **kwargs,
     ):
         self.vocab_size = vocab_size
@@ -55,5 +57,7 @@ class MambaConfig(PretrainedConfig):
         self.rescale_prenorm_residual = rescale_prenorm_residual
         self.residual_in_fp32 = residual_in_fp32
         self.use_cache = use_cache
+        self.num_attention_heads = num_attention_heads  
+        self.attention_probs_dropout_prob = attention_probs_dropout_prob
 
         super().__init__(bos_token_id=bos_token_id, eos_token_id=eos_token_id, pad_token_id=pad_token_id, **kwargs)
