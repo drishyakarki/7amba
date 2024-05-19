@@ -364,7 +364,7 @@ class MambaCausalLMOutput(ModelOutput):
     hidden_states: Optional[Tuple[torch.FloatTensor]] = None
 
 
-class MambaModel(MambaPreTrainedModel):
+class SambaModel(MambaPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
 
@@ -458,12 +458,12 @@ class MambaModel(MambaPreTrainedModel):
         )
 
 
-class MambaForCausalLM(MambaPreTrainedModel):
+class SambaForCausalLM(MambaPreTrainedModel):
     _tied_weights_keys = ["lm_head.weight"]
 
     def __init__(self, config):
         super().__init__(config)
-        self.backbone = MambaModel(config)
+        self.backbone = SambaModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         # Initialize weights and apply final processing
         self.post_init()
@@ -522,7 +522,7 @@ class MambaForCausalLM(MambaPreTrainedModel):
             return_dict=return_dict,
             use_cache=use_cache,
         )
-    
+        
         hidden_states = mamba_outputs[0]
 
         logits = self.lm_head(hidden_states.to(self.lm_head.weight.dtype)).float()
