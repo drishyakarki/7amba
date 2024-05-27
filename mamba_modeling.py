@@ -3,10 +3,9 @@ from dataclasses import dataclass
 from typing import Optional, Tuple, Union, Any, Dict
 import torch
 import math
-from config import MambaConfig
+from mamba_config import MambaConfig
 import logging
 from torch.nn import CrossEntropyLoss
-from torch.nn import MultiheadAttention
 
 logger = logging.getLogger(__name__)
 
@@ -41,21 +40,6 @@ class MambaCache:
             for i in range(config.num_hidden_layers)
         }
 
-class AttentionLayer(nn.Module):
-    def __init__(self, config: MambaConfig):
-        super().__init__()
-        self.attention = nn.MultiheadAttention(
-            config.hidden_size,
-            config.num_attention_heads,
-            dropout=config.attention_probs_dropout_prob,
-            batch_first=True
-        )
-        self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
-
-    def forward(self, hidden_states, **kwargs):
-        attn_output, _ = self.attention(hidden_states, hidden_states, hidden_states)
-        attn_output = self.dropout(attn_output)
-        return attn_output
 
 class MambaMixer(nn.Module):
     def __init__(self, config: MambaConfig, layer_idx: int):
@@ -294,7 +278,7 @@ class MambaBlock(nn.Module):
         hidden_states = self.mixer(hidden_states, cache_params=cache_params)
         hidden_states = residual + hidden_states
         return hidden_states
-    
+
 class MambaPreTrainedModel(PreTrainedModel):
     config_class = MambaConfig
     base_model_prefix = "backbone"
@@ -356,12 +340,7 @@ class MambaModel(MambaPreTrainedModel):
         super().__init__(config)
 
         self.embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
-        # self.layers = nn.ModuleList([MambaBlock(config, layer_idx=idx) for idx in range(config.num_hidden_layers)])
-        # self.attention = nn.ModuleList([AttentionLayer(config) for i in range(math.floor(config.num_hidden_layers / 7))])
-        self.layers = nn.ModuleList(
-        [MambaBlock(config, layer_idx=idx) if (idx + 1) % 8 != 0 else AttentionLayer(config) 
-             for idx in range(config.num_hidden_layers)])
-
+        self.layers = nn.ModuleList([MambaBlock(config, layer_idx=idx) for idx in range(config.num_hidden_layers)])
 
         self.gradient_checkpointing = False
         self.norm_f = MambaRMSNorm(config.hidden_size, eps=config.layer_norm_epsilon)
@@ -379,7 +358,7 @@ class MambaModel(MambaPreTrainedModel):
 
     def set_input_embeddings(self, new_embeddings):
         self.embeddings = new_embeddings
-    
+
     def forward(
         self,
         input_ids: Optional[torch.LongTensor] = None,
@@ -414,7 +393,6 @@ class MambaModel(MambaPreTrainedModel):
 
         hidden_states = inputs_embeds
         all_hidden_states = () if output_hidden_states else None
-        # for i, mixer_block in enumerate(self.layers):
         for mixer_block in self.layers:
             if self.gradient_checkpointing and self.training:
                 hidden_states = self._gradient_checkpointing_func(mixer_block.__call__, hidden_states, cache_params)
@@ -423,9 +401,6 @@ class MambaModel(MambaPreTrainedModel):
 
             if output_hidden_states:
                 all_hidden_states = all_hidden_states + (hidden_states,)
-
-            # if (i + 1) / 7 == 0:
-            #     hidden_states = self.attention[math.floor((i + 1) / 7)] 
 
         if use_cache:
             cache_params.seqlen_offset += inputs_embeds.shape[1]
