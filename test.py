@@ -1,20 +1,30 @@
+import logging
 from datasets import load_dataset, Dataset
-from transformers import AutoTokenizer, TrainingArguments, Trainer, default_data_collator
+from transformers import (AutoTokenizer, TrainingArguments, Trainer, default_data_collator, AdamW, get_scheduler)
 from Samba_modeling import SambaForCausalLM, SambaConfig
+import torch
+from torch.optim import AdamW
+from torch.utils.data import DataLoader
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
 
 # Load dataset
-dataset = load_dataset("BEE-spoke-data/fineweb-1M_longish")
-train_testSplit = dataset["train"].train_test_split(test_size=0.1)
+dataset = load_dataset("kenhktsui/fineweb-100k_en-med_quality_score_v1")
+train_test_split = dataset["train"].train_test_split(test_size=0.1)
 
-# Tokenize dataset
+# Load tokenizer
 tokenizer = AutoTokenizer.from_pretrained("state-spaces/mamba-2.8b-hf")
-block_size = 2048
+block_size = 1024
 
+# Tokenization function
 def tokenize_function(examples):
     return tokenizer(examples["text"], truncation=True, padding='max_length', max_length=block_size)
 
-tokenized_datasets = train_testSplit['train'].map(tokenize_function, batched=True, num_proc=16, remove_columns=["text"])
+# Tokenize datasets
+tokenized_datasets = train_test_split['train'].map(tokenize_function, batched=True, num_proc=16, remove_columns=["text", "quality_score_v1"])
 
+# Group texts
 def group_texts(examples):
     concatenated_examples = {k: sum(examples[k], []) for k in examples.keys()}
     total_length = len(concatenated_examples[list(examples.keys())[0]])
@@ -26,14 +36,24 @@ def group_texts(examples):
     result["labels"] = result["input_ids"].copy()
     return result
 
-lm_datasets = Dataset.load_from_disk("7amba-first-lm")
+# Uncomment these 2 lines if you are running it for the first time
+# lm_datasets = tokenized_datasets.map(group_texts, batched=True, batch_size=1000, num_proc=16)
+# lm_datasets.save_to_disk('see-what-wrong-grouped')
 
-valid_dataset = train_testSplit['test'].map(tokenize_function, batched=True, num_proc=16, remove_columns=["text"])
-eval_dataset = valid_dataset.map(group_texts, batched=True, batch_size=1000, num_proc=16)
+# Uncomment this line after first run, since the dataset is already saved to disk
+lm_datasets = Dataset.load_from_disk('see-what-wrong-grouped')
+
+# Uncomment these 2 lines if you are running it for the first time
+# valid_dataset = train_test_split['test'].map(tokenize_function, batched=True, num_proc=16, remove_columns=["text", "quality_score_v1"])
+# eval_dataset = valid_dataset.map(group_texts, batched=True, batch_size=1000, num_proc=16)
+# eval_dataset.save_to_disk('see-what-wrong-grouped-eval')
+
+# Uncomment this line after first run, since the dataset is already saved to disk
+eval_dataset = Dataset.load_from_disk('see-what-wrong-grouped-eval')
 
 data_collator = default_data_collator
 
-# Model configuration and initialization
+# Define model configuration
 config = SambaConfig(
     vocab_size=50280,
     hidden_size=4096,
@@ -43,45 +63,56 @@ config = SambaConfig(
     eos_token_id=tokenizer.eos_token_id,
     num_attention_heads=8
 )
+
 model = SambaForCausalLM(config)
+logging.info(f'Size of the model: {sum(p.numel() for p in model.parameters())} parameters')
 
-print(f'size of the model is {sum(p.numel() for p in model.parameters())}')
-
-# Training setup
 training_args = TrainingArguments(
     output_dir="./custom",
     num_train_epochs=10,
-    per_device_train_batch_size=3,
+    per_device_train_batch_size=2,
     learning_rate=0.005,
     warmup_steps=5,
-    eval_accumulation_steps=5,
-    per_device_eval_batch_size=3,
+    eval_accumulation_steps=4,
+    per_device_eval_batch_size=2,
     bf16=True,
+    logging_dir='./logs',
+    logging_steps=100,
+    save_steps=500,
+    save_total_limit=2,
+    gradient_accumulation_steps=4,
+)
+
+optimizer = AdamW(model.parameters(), lr=training_args.learning_rate)
+lr_scheduler = get_scheduler(
+    name="linear",
+    optimizer=optimizer,
+    num_warmup_steps=training_args.warmup_steps,
+    num_training_steps=(len(lm_datasets) // training_args.per_device_train_batch_size) * training_args.num_train_epochs
 )
 
 trainer = Trainer(
     model=model,
-    tokenizer=tokenizer,
     args=training_args,
     train_dataset=lm_datasets,
-    data_collator=data_collator,
     eval_dataset=eval_dataset,
+    tokenizer=tokenizer,
+    data_collator=data_collator,
+    optimizers=(optimizer, lr_scheduler)
 )
 
-# Train and evaluate the model
 trainer.train()
 result = trainer.evaluate()
+print('Evaluation results: ', result)
 
-# Save the model
 trainer.save_model('samba-first-model')
+tokenizer.save_pretrained('samba-first-model')
 
-# Load the trained model for inference
 tokenizer = AutoTokenizer.from_pretrained('samba-first-model')
 model = SambaForCausalLM.from_pretrained('samba-first-model')
 
-# Generate text
 input_ids = tokenizer("Tell me about ", return_tensors="pt")["input_ids"]
 out = model.generate(input_ids, max_new_tokens=1000)
-generated_text = tokenizer.batch_decode(out)
+generated_text = tokenizer.batch_decode(out, skip_special_tokens=True)
 
 print(generated_text)
