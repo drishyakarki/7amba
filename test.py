@@ -81,15 +81,18 @@ training_args = TrainingArguments(
     save_steps=500,
     save_total_limit=2,
     gradient_accumulation_steps=4,
+    optim = 'adamw_bnb_8_bit',
+    torch_compile= True,
+    # gradient_checkpointing=True # Good for memory efficiency but slows training by 20%
 )
 
-optimizer = AdamW(model.parameters(), lr=training_args.learning_rate)
-lr_scheduler = get_scheduler(
-    name="linear",
-    optimizer=optimizer,
-    num_warmup_steps=training_args.warmup_steps,
-    num_training_steps=(len(lm_datasets) // training_args.per_device_train_batch_size) * training_args.num_train_epochs
-)
+# optimizer = AdamW(model.parameters(), lr=training_args.learning_rate)
+# lr_scheduler = get_scheduler(
+#     name="linear",
+#     optimizer=optimizer,
+#     num_warmup_steps=training_args.warmup_steps,
+#     num_training_steps=(len(lm_datasets) // training_args.per_device_train_batch_size) * training_args.num_train_epochs
+# )
 
 trainer = Trainer(
     model=model,
@@ -98,7 +101,7 @@ trainer = Trainer(
     eval_dataset=eval_dataset,
     tokenizer=tokenizer,
     data_collator=data_collator,
-    optimizers=(optimizer, lr_scheduler)
+    # optimizers=(optimizer, lr_scheduler)
 )
 
 trainer.train()
