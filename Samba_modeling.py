@@ -372,7 +372,7 @@ class SambaModel(MambaPreTrainedModel):
         # self.layers = nn.ModuleList([MambaBlock(config, layer_idx=idx) for idx in range(config.num_hidden_layers)])
         # self.attention = nn.ModuleList([AttentionLayer(config) for i in range(math.floor(config.num_hidden_layers / 7))])
         self.layers = nn.ModuleList(
-        [MambaBlock(config, layer_idx=idx) if (idx + 1) % 8 != 0 else SambaAttentionDecoder(config) 
+        [MambaBlock(config, layer_idx=idx) if (idx + 1) % config.attention_layer != 0 else SambaAttentionDecoder(config) 
              for idx in range(config.num_hidden_layers)])
 
 
