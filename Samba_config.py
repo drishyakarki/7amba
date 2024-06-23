@@ -32,6 +32,7 @@ class SambaConfig(PretrainedConfig):
         num_attention_heads=2,  
         attention_probs_dropout_prob=0.1,
         attention_layer=8,
+        hidden_dropout_prob=0.1,  
         **kwargs,
     ):
         assert hidden_size % state_size == 0, "hidden_size must be divisible by state_size"
@@ -63,5 +64,6 @@ class SambaConfig(PretrainedConfig):
         self.num_attention_heads = num_attention_heads  
         self.attention_probs_dropout_prob = attention_probs_dropout_prob
         self.attention_layer = attention_layer
+        self.hidden_dropout_prob = hidden_dropout_prob
 
         super().__init__(bos_token_id=bos_token_id, eos_token_id=eos_token_id, pad_token_id=pad_token_id, **kwargs)

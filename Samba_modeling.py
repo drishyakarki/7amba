@@ -289,6 +289,7 @@ class MambaRMSNorm(nn.Module):
         variance = hidden_states.pow(2).mean(-1, keepdim=True)
         hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
         return self.weight * hidden_states.to(input_dtype)
+    
 class MambaBlock(nn.Module):
     def __init__(self, config, layer_idx):
         super().__init__()
@@ -297,6 +298,7 @@ class MambaBlock(nn.Module):
         self.residual_in_fp32 = config.residual_in_fp32
         self.norm = MambaRMSNorm(config.hidden_size, eps=config.layer_norm_epsilon)
         self.mixer = MambaMixer(config, layer_idx=layer_idx)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)  # Add dropout layer
 
     def forward(self, hidden_states, cache_params: Optional[MambaCache] = None):
         residual = hidden_states
@@ -305,6 +307,7 @@ class MambaBlock(nn.Module):
             residual = residual.to(torch.float32)
 
         hidden_states = self.mixer(hidden_states, cache_params=cache_params)
+        hidden_states = self.dropout(hidden_states)  # Apply dropout
         hidden_states = residual + hidden_states
         return hidden_states
     

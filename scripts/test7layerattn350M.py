@@ -12,11 +12,11 @@ from Samba_modeling import SambaForCausalLM, SambaConfig
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
-tokenized_dataset = Dataset.load_from_disk('fineweb-tokenized-10B')
-lm_datasets = Dataset.load_from_disk('fineweb-tokenized-grouped-10B')
+tokenized_dataset = Dataset.load_from_disk('fineweb-tokenized-8B')
+lm_datasets = Dataset.load_from_disk('fineweb-tokenized-grouped-8B')
 
-valid_dataset = Dataset.load_from_disk('fineweb-tokenized-eval-10B')
-eval_dataset = Dataset.load_from_disk('fineweb-tokenized-eval-grouped-10B')
+valid_dataset = Dataset.load_from_disk('fineweb-tokenized-eval-8B')
+eval_dataset = Dataset.load_from_disk('fineweb-tokenized-eval-grouped-8B')
 
 data_collator = default_data_collator
 
@@ -39,9 +39,9 @@ logging.info(f'Size of the model: {sum(p.numel() for p in model.parameters())} p
 training_args = TrainingArguments(
     output_dir="./custom",
     num_train_epochs=10,
-    per_device_train_batch_size=2,
-    learning_rate=0.005,
-    warmup_steps=5,
+    per_device_train_batch_size=4,  # Increased batch size
+    learning_rate=0.001,  # Lowered learning rate
+    warmup_steps=500,  # Increased warmup steps
     eval_accumulation_steps=4,
     per_device_eval_batch_size=2,
     bf16=True,
@@ -49,7 +49,7 @@ training_args = TrainingArguments(
     logging_steps=100,
     save_steps=500,
     save_total_limit=2,
-    gradient_accumulation_steps=4,
+    gradient_accumulation_steps=2, # Adjusted gradient accumulation steps
     optim = 'adamw_bnb_8_bit',
     # torch_compile= True, # I think you said it caused problem earlier
     # gradient_checkpointing=True # Good for memory efficiency but slows training by 20%
