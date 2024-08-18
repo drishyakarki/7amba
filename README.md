@@ -11,6 +11,8 @@ This repository now contains code for finetuning mamba models on chat dataset. B
 
 Because we had difficulties intially when searching for ways to finetune the model. So, we hope this helps someone who is begining their LLM journey or exploring the finetuning domain.
 
+We have also uploaded the code for hosting the model in huggingface space.
+
 ## Future Work: HAMBA
 In parallel with this project, we are also working on a paper titled HAMBA, which further investigates the capabilities of the Mamba architecture. Once completed, we will release the associated code in the [repo](https://github.com/AssistantsLab/HAMBA).
 
