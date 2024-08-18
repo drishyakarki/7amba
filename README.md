@@ -12,3 +12,17 @@ This repository now houses the code for fine-tuning Mamba models on chat dataset
 ## Future Work: HAMBA
 In parallel with this project, we are also working on a paper titled HAMBA, which further investigates the capabilities of the Mamba architecture. Once completed, we will release the associated code in the [repo](https://github.com/AssistantsLab/HAMBA).
 
+## Getting Started
+Simply clone the repo and get started with your finetuning. You have to adjust your dataset path.
+
+## Sample outputs
+
+Here are some of the outputs generated from the model.
+
+![First image](images/img.png)
+
+This is the first image showing the output of the model.
+
+![Second image](images/img2.png)
+
+This is the second image showing the output of the model.
