@@ -46,20 +46,20 @@ def preprocess_conversations(examples, tokenizer):
 
 def main():
     # Configuration
-    DATASET_NAME = "lmsys/lmsys-chat-1m"
+    DATASET = "lmsys/lmsys-chat-1m"
     LANGUAGE = "English"
     SAMPLE_SIZE = 200000
-    MODEL_NAME = "state-spaces/mamba-2.8b-hf"
+    MODEL = "state-spaces/mamba-2.8b-hf"
     OUTPUT_DIR = "filtered_chat_dataset"
 
     # Load and prepare tokenizer
-    print(f"Loading tokenizer: {MODEL_NAME}")
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    print(f"Loading tokenizer: {MODEL}")
+    tokenizer = AutoTokenizer.from_pretrained(MODEL)
     tokenizer.eos_token = "<|endoftext|>"
     tokenizer.pad_token = tokenizer.eos_token
 
     # Load and filter dataset
-    dataset = load_and_filter_dataset(DATASET_NAME, LANGUAGE, SAMPLE_SIZE)
+    dataset = load_and_filter_dataset(DATASET, LANGUAGE, SAMPLE_SIZE)
 
     # Preprocess dataset
     print("Preprocessing dataset")
@@ -87,8 +87,8 @@ def print_dataset_info(original_dataset, processed_dataset):
 
     print("\n" + "="*50 + "\n")
     print("Sample from processed dataset (detokenized):")
-    gpt2_tokenizer = AutoTokenizer.from_pretrained("gpt2")
-    detokenized = gpt2_tokenizer.decode(processed_dataset['train'][0]['input_ids'])
+    tokenizer = AutoTokenizer.from_pretrained("state-spaces/mamba-2.8b-hf")
+    detokenized = tokenizer.decode(processed_dataset['train'][0]['input_ids'])
     print(detokenized)
 
     print("\n" + "="*50 + "\n")
