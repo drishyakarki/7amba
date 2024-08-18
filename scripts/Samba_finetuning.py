@@ -1,86 +1,93 @@
-import torch
+import os
 from datasets import load_dataset
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    TrainingArguments,
-    pipeline,
-)
 from trl import SFTTrainer
+from peft import LoraConfig
+from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments
 
-# Model
-base_model = "state-spaces/mamba-2.8b-hf"
-new_model = "mamba-2-finetune"
+def load_model_and_tokenizer(model_name):
+    """
+    Load the pre-trained model and tokenizer.
+    """
+    print(f"Loading model and tokenizer: {model_name}")
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name)
+    return model, tokenizer
 
-# Set torch dtype and attention implementation
-torch_dtype = torch.float16
+def load_dataset(dataset_path):
+    """
+    Load the preprocessed dataset.
+    """
+    print(f"Loading dataset from: {dataset_path}")
+    return load_dataset(dataset_path)
 
-dataset_name = "mlabonne/mini-platypus"
-dataset = load_dataset(dataset_name, split="all")
-dataset = dataset.train_test_split(test_size=0.01)
+def configure_training_arguments(output_dir, epochs, batch_size, learning_rate):
+    """
+    Configure the training arguments.
+    """
+    return TrainingArguments(
+        output_dir=output_dir,
+        num_train_epochs=epochs,
+        per_device_train_batch_size=batch_size,
+        logging_dir=os.path.join(output_dir, 'logs'),
+        logging_steps=10,
+        learning_rate=learning_rate
+    )
 
-# Tokenizer
-tokenizer = AutoTokenizer.from_pretrained(base_model)
-tokenizer.pad_token = tokenizer.unk_token
+def configure_lora(rank, target_modules):
+    """
+    Configure the LoRA (Low-Rank Adaptation) settings.
+    """
+    return LoraConfig(
+        r=rank,
+        target_modules=target_modules,
+        task_type="CAUSAL_LM",
+        bias="none"
+    )
 
-# Tokenization function
-def tokenize_function(examples):
-    return tokenizer(examples['instruction'], padding="max_length", truncation=True, max_length=512)
+def setup_trainer(model, tokenizer, training_args, lora_config, dataset, text_field):
+    """
+    Set up the SFT (Supervised Fine-Tuning) Trainer.
+    """
+    return SFTTrainer(
+        model=model,
+        tokenizer=tokenizer,
+        args=training_args,
+        peft_config=lora_config,
+        train_dataset=dataset,
+        dataset_text_field=text_field,
+    )
 
-# Apply tokenization to the dataset
-tokenized_dataset = dataset.map(tokenize_function, batched=True)
+def main():
+    # Configuration
+    MODEL_NAME = "state-spaces/mamba-2.8b-hf"
+    DATASET_PATH = 'preprocessed_lm_sys_data/'
+    OUTPUT_DIR = "./results"
+    EPOCHS = 3
+    BATCH_SIZE = 4
+    LEARNING_RATE = 2e-3
+    LORA_RANK = 8
+    LORA_TARGET_MODULES = ["x_proj", "embeddings", "in_proj", "out_proj"]
+    DATASET_TEXT_FIELD = "quote"
 
-# Load model
-model = AutoModelForCausalLM.from_pretrained(
-    base_model,
-    device_map="auto",
-    torch_dtype=torch_dtype,
-)
+    # Load model and tokenizer
+    model, tokenizer = load_model_and_tokenizer(MODEL_NAME)
 
-# Training arguments
-training_arguments = TrainingArguments(
-    learning_rate=2e-4,
-    lr_scheduler_type="linear",
-    num_train_epochs=1,
-    per_device_train_batch_size=3,
-    per_device_eval_batch_size=3,
-    gradient_accumulation_steps=1,
-    evaluation_strategy="steps",
-    eval_steps=100,  
-    logging_steps=1,
-    optim="paged_adamw_8bit",
-    warmup_steps=10,
-    output_dir="./results",
-    bf16=True,
-    gradient_checkpointing=True,
-    save_strategy="steps",
-    save_steps=50,
-)
+    # Load dataset
+    dataset = load_dataset(DATASET_PATH)
 
-# Trainer
-trainer = SFTTrainer(
-    model=model,
-    train_dataset=tokenized_dataset["train"],
-    eval_dataset=tokenized_dataset["test"],
-    dataset_text_field="input_ids",  
-    max_seq_length=512,
-    tokenizer=tokenizer,
-    args=training_arguments,
-)
+    # Configure training arguments
+    training_args = configure_training_arguments(OUTPUT_DIR, EPOCHS, BATCH_SIZE, LEARNING_RATE)
 
-# Start training
-trainer.train()
+    # Configure LoRA
+    lora_config = configure_lora(LORA_RANK, LORA_TARGET_MODULES)
 
-# Save the fine-tuned model and tokenizer
-trainer.model.save_pretrained(new_model)
-tokenizer.save_pretrained(new_model)
+    # Set up trainer
+    trainer = setup_trainer(model, tokenizer, training_args, lora_config, dataset, DATASET_TEXT_FIELD)
 
-# Generate text with the fine-tuned model
-prompt = "What is a large language model?"
-instruction = f"### Instruction:\n{prompt}\n\n### Response:\n"
+    # Start training
+    print("Starting training...")
+    trainer.train()
+    print("Training completed.")
 
-# Reload the fine-tuned model for inference
-pipe = pipeline("text-generation", model=new_model, tokenizer=tokenizer, max_length=128)
-result = pipe(instruction)
-print(result[0]["generated_text"][len(instruction):])
-
+if __name__ == "__main__":
+    main()
